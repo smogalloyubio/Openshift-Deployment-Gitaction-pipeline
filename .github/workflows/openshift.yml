@@ -39,13 +39,12 @@ jobs:
 
     - name: Build container image
       id: build-image
-      working-directory: /ecommerce-app
       uses: redhat-actions/buildah-build@v2
       with:
         image: ${{ env.APP_NAME }}
         tags: ${{ env.IMAGE_TAGS }}
         dockerfiles: |
-          ./Dockerfile
+          ./ecommerce-app/Dockerfile
 
     - name: Trivy Image Scan
       uses: aquasecurity/trivy-action@master
