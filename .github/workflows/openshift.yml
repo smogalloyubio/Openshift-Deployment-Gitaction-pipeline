@@ -2,81 +2,66 @@ name: OpenShift CI/CD
 
 env:
   OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
-  OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN}}
-  OPENSHIFT_NAMESPACE: "ubiowororuki-dev"
-  APP_NAME: "openshift-app"
+  OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+  OPENSHIFT_NAMESPACE: ubiowororuki-dev
+  APP_NAME: openshift-app
   APP_PORT: "8080"
-  IMAGE_REGISTRY: "quay.io/${{ secrets.QUAY_USERNAME }}"
-  IMAGE_REGISTRY_USER: ${{ secrets.QUAY_USERNAME}}
+  IMAGE_REGISTRY: quay.io/${{ secrets.QUAY_USERNAME }}
+  IMAGE_REGISTRY_USER: ${{ secrets.QUAY_USERNAME }}
   IMAGE_REGISTRY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
-  IMAGE_TAGS: "v1.1"
+  IMAGE_TAGS: v1.1
 
 on:
   push:
-    branches: 
-      - main
-  workflow_dispatch:
+    branches: [main]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: /ecommerce-app
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Trivy FS Scan (Dockerfile + source)
+    - name: Trivy FS Scan
       uses: aquasecurity/trivy-action@master
       with:
-        scan-type: "fs"
-        severity: "HIGH,CRITICAL"
+        scan-type: fs
+        severity: HIGH,CRITICAL
         ignore-unfixed: true
-        exit-code: "1"
-        path: "/ecommerce-app"
+        exit-code: 1
+        path: ecommerce-app
 
-    - name: check  the  file diretory to build the image
+    - name: Debug files
       run: |
-        echo "Checking Dockerfile and source code directory..."
-        ls -la ./ecommerce-app
-        cat /ecommerce-app/Dockerfile
-        pwd 
+        ls -la ecommerce-app
+        cat ecommerce-app/Dockerfile
 
     - name: Build container image
-      id: build-image
       uses: redhat-actions/buildah-build@v2
       with:
         image: ${{ env.APP_NAME }}
         tags: ${{ env.IMAGE_TAGS }}
-        dockerfiles: |
-          ./ecommerce-app/Dockerfile
+        context: ecommerce-app
+        dockerfiles: ecommerce-app/Dockerfile
 
     - name: Trivy Image Scan
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: "${{ env.APP_NAME }}:latest"
-        severity: "HIGH,CRITICAL"
+        image-ref: "${{ env.APP_NAME }}:${{ env.IMAGE_TAGS }}"
+        severity: HIGH,CRITICAL
         ignore-unfixed: true
-        exit-code: "1"
+        exit-code: 1
 
-    - name: Push image to Quay.io
+    - name: Push to Quay
       id: push-image
       uses: redhat-actions/push-to-registry@v2
       with:
-        image: ${{ steps.build-image.outputs.image }}
-        tags: ${{ steps.build-image.outputs.tags }}
+        image: ${{ env.APP_NAME }}
+        tags: ${{ env.IMAGE_TAGS }}
         registry: ${{ env.IMAGE_REGISTRY }}
         username: ${{ env.IMAGE_REGISTRY_USER }}
         password: ${{ env.IMAGE_REGISTRY_PASSWORD }}
-
-    - name: Login to Quay.io
-      uses: docker/login-action@v4
-      with:
-        registry: quay.io
-        username: ${{ secrets.QUAY_USERNAME }}
-        password: ${{ secrets.QUAY_PASSWORD }}
 
     - name: Install oc CLI
       uses: redhat-actions/openshift-tools-installer@v1
@@ -91,22 +76,14 @@ jobs:
         insecure_skip_tls_verify: true
         namespace: ${{ env.OPENSHIFT_NAMESPACE }}
 
-    - name: Set Quay image path
+    - name: Deploy
       run: |
-        echo "QUAY_IMAGE=${{ env.IMAGE_REGISTRY }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAGS }}" >> $GITHUB_ENV
-
-    - name: Apply Deployment, Service, Route templates
-      run: |
-        sed -i "s|IMAGE_PLACEHOLDER|${{ steps.push-image.outputs.registry-path }}|g" openshift/deployment.yaml
         oc apply -f openshift/deployment.yaml
         oc apply -f openshift/service.yaml
         oc apply -f openshift/route.yaml
 
-    - name: Verify rollout
-      run: |
-        oc rollout status deployment/${{ env.APP_NAME }} -n ${{ env.OPENSHIFT_NAMESPACE }}
+    - name: Rollout status
+      run: oc rollout status deployment/${{ env.APP_NAME }}
 
-    - name: Print Route URL
-      run: |
-        echo "Application Route:"
-        oc get route ${{ env.APP_NAME }} -n ${{ env.OPENSHIFT_NAMESPACE }} -o jsonpath='{.spec.host}'
+    - name: Route URL
+      run: oc get route ${{ env.APP_NAME }} -o jsonpath='{.spec.host}'
