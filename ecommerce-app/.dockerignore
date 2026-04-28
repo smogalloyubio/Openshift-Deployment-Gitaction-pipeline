@@ -8,3 +8,8 @@ README.md
 .DS_Store
 .vscode
 coverage
+kind*
+Kuber*
+bitcoin
+*bitcoin*
+
