@@ -40,7 +40,7 @@ jobs:
     - name: check  the  file diretory to build the image
       run: |
         echo "Checking Dockerfile and source code directory..."
-        ls -la /ecommerce-app
+        ls -la ./ecommerce-app
         cat /ecommerce-app/Dockerfile
         pwd 
 
