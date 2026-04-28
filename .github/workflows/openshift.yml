@@ -37,6 +37,13 @@ jobs:
         exit-code: "1"
         path: "/ecommerce-app"
 
+    - name: check  the  file diretory to build the image
+      run: |
+        echo "Checking Dockerfile and source code directory..."
+        ls -la /ecommerce-app
+        cat /ecommerce-app/Dockerfile
+        pwd 
+
     - name: Build container image
       id: build-image
       uses: redhat-actions/buildah-build@v2
