@@ -1,52 +1,34 @@
 name: OpenShift CI/CD
 
+on:
+  push:
+    branches: [main]
+
 env:
   OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
   OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
   OPENSHIFT_NAMESPACE: ubiowororuki-dev
+
   APP_NAME: openshift-app
-  APP_PORT: "8080"
+  IMAGE_TAG: v1.1
+
   IMAGE_REGISTRY: quay.io/${{ secrets.QUAY_USERNAME }}
   IMAGE_REGISTRY_USER: ${{ secrets.QUAY_USERNAME }}
   IMAGE_REGISTRY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
-  IMAGE_TAGS: v1.1
-
-on:
-  push:
-    branches: [main]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
+
+ 
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Trivy FS Scan
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: fs
-        severity: HIGH,CRITICAL
-        ignore-unfixed: true
-        exit-code: 1
-        path: ecommerce-app
-
-    - name: Debug files
-      run: |
-        ls -la ecommerce-app
-        cat ecommerce-app/Dockerfile
-
-    - name: Build container image
-      uses: redhat-actions/buildah-build@v2
-      with:
-        image: ${{ env.APP_NAME }}
-        tags: ${{ env.IMAGE_TAGS }}
-        context: ecommerce-app
-        dockerfiles: ecommerce-app/Dockerfile
-        oci: true
-        layers: true
-
+    # =========================
+    # 2. Cache (MUST be early)
+    # =========================
     - name: Cache npm dependencies
       uses: actions/cache@v4
       with:
@@ -54,13 +36,50 @@ jobs:
           ecommerce-app/node_modules
           ~/.npm
         key: ${{ runner.os }}-node-${{ hashFiles('ecommerce-app/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
 
 
+    - name: Trivy FS Scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: fs
+        path: ecommerce-app
+        severity: HIGH,CRITICAL
+        ignore-unfixed: true
+        exit-code: 1
+
+
+    - name: Build container image
+      id: build
+      uses: redhat-actions/buildah-build@v2
+      with:
+        image: ${{ env.APP_NAME }}
+        tags: ${{ env.IMAGE_TAG }}
+        context: ecommerce-app
+        dockerfiles: ecommerce-app/Dockerfile
+        layers: true
+
+ 
     - name: Set image name
       run: |
-        echo "IMAGE=quay.io/${{ secrets.QUAY_USERNAME }}/openshift-app:v1.1" >> $GITHUB_ENV
+        echo "IMAGE=${{ env.IMAGE_REGISTRY }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}" >> $GITHUB_ENV
+
+
+    - name: Login to Quay
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_USERNAME }}
+        password: ${{ secrets.QUAY_PASSWORD }}
+
+    - name: Push image to Quay
+      uses: redhat-actions/push-to-registry@v2
+      with:
+        image: ${{ env.APP_NAME }}
+        tags: ${{ env.IMAGE_TAG }}
+        registry: ${{ env.IMAGE_REGISTRY }}
+        username: ${{ env.IMAGE_REGISTRY_USER }}
+        password: ${{ env.IMAGE_REGISTRY_PASSWORD }}
+
 
     - name: Trivy Image Scan
       uses: aquasecurity/trivy-action@master
@@ -70,21 +89,13 @@ jobs:
         ignore-unfixed: true
         exit-code: 1
 
-    - name: Push to Quay
-      id: push-image
-      uses: redhat-actions/push-to-registry@v2
-      with:
-        image: ${{ env.APP_NAME }}
-        tags: ${{ env.IMAGE_TAGS }}
-        registry: ${{ env.IMAGE_REGISTRY }}
-        username: ${{ env.IMAGE_REGISTRY_USER }}
-        password: ${{ env.IMAGE_REGISTRY_PASSWORD }}
-
+  
     - name: Install oc CLI
       uses: redhat-actions/openshift-tools-installer@v1
       with:
         oc: 4
 
+ 
     - name: Login to OpenShift
       uses: redhat-actions/oc-login@v1
       with:
@@ -93,14 +104,20 @@ jobs:
         insecure_skip_tls_verify: true
         namespace: ${{ env.OPENSHIFT_NAMESPACE }}
 
-    - name: Deploy
+   
+    - name: Deploy to OpenShift
       run: |
         oc apply -f openshift/deployment.yaml
         oc apply -f openshift/service.yaml
         oc apply -f openshift/route.yaml
 
-    - name: Rollout status
-      run: oc rollout status deployment/${{ env.APP_NAME }}
 
+    - name: Rollout status
+      run: |
+        oc rollout status deployment/${{ env.APP_NAME }}
+
+  
     - name: Route URL
-      run: oc get route ${{ env.APP_NAME }} -o jsonpath='{.spec.host}'
+      run: |
+        oc get route ${{ env.APP_NAME }} \
+        -o jsonpath='{.spec.host}'
