@@ -143,9 +143,8 @@ jobs:
         run: |
           oc rollout status deployment/${{ env.APP_NAME }}
 
-      
-      - name: Get Route
+      - name: Verify Application Route
         run: |
-          echo "Application URL:"
-          oc  expose svc/${{ env.APP_NAME }}  --port=8080
+         oc get  pods -o wide 
+         echo "Application should be accessible via the route created in OpenShift"
           
