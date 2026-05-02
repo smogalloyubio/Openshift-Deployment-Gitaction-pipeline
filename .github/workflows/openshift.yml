@@ -14,7 +14,7 @@ env:
 
   IMAGE_REGISTRY: quay.io
   IMAGE_REGISTRY_USER: ${{ secrets.QUAY_USERNAME }}
-  IMAGE_REGISTRY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+  IMAGE_REGISTRY_PASSWORD: ${{ secrets.QUAY_TOKEN }}
 
   IMAGE_FULL: quay.io/${{ secrets.QUAY_USERNAME }}/openshift-app:latest
 
@@ -81,7 +81,7 @@ jobs:
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USERNAME }}
-        password: ${{ secrets.QUAY_PASSWORD }}
+        password: ${{ secrets.QUAY_TOKEN }}
 
 
     - name: Push image to Quay
