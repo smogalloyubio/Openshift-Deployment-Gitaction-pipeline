@@ -5,6 +5,6 @@ metadata:
 spec:
   to:
     kind: Service
-    name: openshift-app-service
+    name: openshift-app
   port:
     targetPort: 8080
