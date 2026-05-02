@@ -8,9 +8,12 @@ env:
   APP_NAME: openshift-app
   IMAGE_TAG: latest
   NAMESPACE: ubiowororuki-dev
+  QUAY_USERNAME: ubiowororuki
 
-  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
-  QUAY_IMAGE: quay.io/ubiowororuki/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWDORD: ${{ secrets.DOCKER_PASSWORD }}
+  QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+  
 
 jobs:
 
@@ -76,17 +79,16 @@ jobs:
           file: ecommerce-app/Dockerfile
           push: false
           tags: |
-            ${{ env.DOCKER_IMAGE }}
-            ${{ env.QUAY_IMAGE }}
+            ${{ env.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.QUAY_USERNAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
 
       # -------------------------
       # PUSH IMAGE TO BOTH REGISTRIES
       # -------------------------
       - name: Push Images
         run: |
-          docker push ${{ env.DOCKER_IMAGE }}
-          docker push ${{ env.QUAY_IMAGE }}
-
+          docker push ${{ env.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.QUAY_USERNAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
 
 # ==================================================
 # 🔴 STAGE 3 - DEPLOY TO OPENSHIFT
