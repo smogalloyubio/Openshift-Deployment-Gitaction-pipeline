@@ -18,7 +18,7 @@ env:
   QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
 
-  IMAGE_FULL: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+  
 
 jobs:
 
@@ -45,6 +45,11 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: 1
+
+
+      - name: set the image name 
+        run: |
+          echo "IMAGE_FULL=${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}" >> $GITHUB_ENV
 
 
   build-deploy:
@@ -103,7 +108,7 @@ jobs:
         with:
           oc: 4
 
-      # 🔑 Login to OpenShift
+   
       - name: Login to OpenShift
         uses: redhat-actions/oc-login@v1
         with:
