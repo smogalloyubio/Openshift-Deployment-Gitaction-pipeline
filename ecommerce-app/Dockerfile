@@ -11,11 +11,11 @@ COPY . .
 
 RUN npm run build
 FROM nginx:alpine-slim
-RUN rm -rf /usr/share/nginx/html/*
+RUN rm -rf /usr/share/nginx/html/* && rm  -rf /etc/nginx/conf.d/default.conf
 
 COPY --from=build /app/build  /usr/share/nginx/html
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/nginx.conf
 
 
 RUN chmod -R 775 /var/cache/nginx /var/run /var/log/nginx /usr/share/nginx/html && \
