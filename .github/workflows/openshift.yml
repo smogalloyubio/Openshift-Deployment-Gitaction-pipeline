@@ -10,12 +10,13 @@ env:
   OPENSHIFT_NAMESPACE: ubiowororuki-dev
 
   APP_NAME: openshift-app
-  IMAGE_TAG: latest   
+  IMAGE_TAG: latest
 
   IMAGE_REGISTRY: quay.io
   IMAGE_NAMESPACE: ubiowororuki
 
-  QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+
+  QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}   # e.g. ubiowororuki+ubio
   QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
   IMAGE_FULL: quay.io/ubiowororuki/openshift-app:latest
@@ -23,9 +24,9 @@ env:
 
 jobs:
 
-# ---------------------------
-# SECURITY SCAN (SOURCE CODE)
-# ---------------------------
+# -----------------------
+# CODE SCAN
+# -----------------------
   scan:
     runs-on: ubuntu-latest
 
@@ -43,22 +44,25 @@ jobs:
           exit-code: 1
 
 
-# ---------------------------
+# -----------------------
 # BUILD + DEPLOY
-# ---------------------------
+# -----------------------
   build-deploy:
     runs-on: ubuntu-latest
     needs: scan
 
     steps:
 
+# -----------------------
+# Checkout
+# -----------------------
       - name: Checkout code
         uses: actions/checkout@v4
 
 
-# ---------------------------
-# BUILD IMAGE
-# ---------------------------
+# -----------------------
+# Build Image
+# -----------------------
       - name: Build container image
         uses: redhat-actions/buildah-build@v2
         with:
@@ -69,9 +73,9 @@ jobs:
           layers: true
 
 
-# ---------------------------
-# TAG IMAGE
-# ---------------------------
+# -----------------------
+# Tag Image
+# -----------------------
       - name: Tag image for Quay
         run: |
           buildah tag \
@@ -79,27 +83,32 @@ jobs:
             ${{ env.IMAGE_FULL }}
 
 
-# ---------------------------
-# LOGIN TO QUAY (IMPORTANT FIX)
-# ---------------------------
-      - name: Login to Quay (Buildah)
+# -----------------------
+# LOGIN TO QUAY (CRITICAL FIX)
+# -----------------------
+      - name: Login to Quay (Buildah) - VERIFY ROBOT
         run: |
+          echo "Logging in to Quay as: ${{ env.QUAY_USERNAME }}"
+
           echo "${{ env.QUAY_TOKEN }}" | buildah login quay.io \
             -u "${{ env.QUAY_USERNAME }}" \
             --password-stdin
 
+          echo "Login successful ✔"
 
-# ---------------------------
+
+# -----------------------
 # PUSH IMAGE
-# ---------------------------
+# -----------------------
       - name: Push image to Quay
         run: |
+          echo "Pushing image: ${{ env.IMAGE_FULL }}"
           buildah push ${{ env.IMAGE_FULL }}
 
 
-# ---------------------------
+# -----------------------
 # IMAGE SCAN
-# ---------------------------
+# -----------------------
       - name: Trivy Image Scan
         uses: aquasecurity/trivy-action@master
         with:
@@ -109,9 +118,9 @@ jobs:
           exit-code: 1
 
 
-# ---------------------------
-# OPENSHIFT DEPLOYMENT
-# ---------------------------
+# -----------------------
+# OPENSHIFT LOGIN
+# -----------------------
       - name: Install oc CLI
         uses: redhat-actions/openshift-tools-installer@v1
         with:
@@ -127,6 +136,9 @@ jobs:
           namespace: ${{ env.OPENSHIFT_NAMESPACE }}
 
 
+# -----------------------
+# DEPLOY
+# -----------------------
       - name: Apply OpenShift resources
         run: |
           oc apply -f openshift/deployment.yaml
@@ -147,5 +159,5 @@ jobs:
 
       - name: Route URL
         run: |
-          echo "App URL:"
+          echo "Application URL:"
           oc get route ${{ env.APP_NAME }} -o jsonpath='{.spec.host}'
