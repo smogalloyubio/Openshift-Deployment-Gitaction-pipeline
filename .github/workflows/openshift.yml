@@ -10,7 +10,7 @@ env:
   OPENSHIFT_NAMESPACE: ubiowororuki-dev
 
   APP_NAME: openshift-app
-  IMAGE_TAG: v1
+  IMAGE_TAG: latest   
 
   IMAGE_REGISTRY: quay.io/${{ secrets.QUAY_USERNAME }}
   IMAGE_REGISTRY_USER: ${{ secrets.QUAY_USERNAME }}
