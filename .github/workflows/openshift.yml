@@ -147,4 +147,5 @@ jobs:
       - name: Get Route
         run: |
           echo "Application URL:"
-          oc get route ${{ env.APP_NAME }} -o jsonpath='{.spec.host}'
+          oc  expose svc/${{ env.APP_NAME }}  --port=8080
+          
