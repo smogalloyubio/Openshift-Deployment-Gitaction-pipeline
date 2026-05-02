@@ -1,4 +1,4 @@
-name: OpenShift CI/CD
+name: OpenShift CI/CD Pipeline
 
 on:
   push:
@@ -14,119 +14,102 @@ env:
 
   IMAGE_REGISTRY: quay.io
   IMAGE_NAMESPACE: ubiowororuki
-
-
-  QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}   # e.g. ubiowororuki+ubio
-  QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-
   IMAGE_FULL: quay.io/ubiowororuki/openshift-app:latest
 
+  QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+  QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
+# =========================
+# 🔵 STAGE 1: SCAN
+# =========================
 jobs:
 
-# -----------------------
-# CODE SCAN
-# -----------------------
   scan:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Trivy FS Scan
+      - name: Trivy Filesystem Scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           path: ecommerce-app
           severity: HIGH,CRITICAL
-          ignore-unfixed: true
           exit-code: 1
 
-
-# -----------------------
-# BUILD + DEPLOY
-# -----------------------
+# =========================
+# 🟢 STAGE 2: BUILD + DEPLOY
+# =========================
   build-deploy:
     runs-on: ubuntu-latest
     needs: scan
 
     steps:
 
-# -----------------------
-# Checkout
-# -----------------------
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
+      # -------------------------
+      # 🐳 Docker Setup
+      # -------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-# -----------------------
-# Build Image
-# -----------------------
-      - name: Build container image
-        uses: redhat-actions/buildah-build@v2
+      # -------------------------
+      # 🔐 LOGIN TO QUAY
+      # -------------------------
+      - name: Login to Quay
+        uses: docker/login-action@v3
         with:
-          image: ${{ env.APP_NAME }}
-          tags: ${{ env.IMAGE_TAG }}
-          context: ecommerce-app
-          dockerfiles: ecommerce-app/Dockerfile
-          layers: true
+          registry: quay.io
+          username: ${{ env.QUAY_USERNAME }}
+          password: ${{ env.QUAY_TOKEN }}
 
 
-# -----------------------
-# Tag Image
-# -----------------------
-      - name: Tag image for Quay
-        run: |
-          buildah tag \
-            ${{ env.APP_NAME }}:${{ env.IMAGE_TAG }} \
-            ${{ env.IMAGE_FULL }}
 
-
-# -----------------------
-# LOGIN TO QUAY (CRITICAL FIX)
-# -----------------------
-      - name: Login to Quay (Buildah) - VERIFY ROBOT
-        run: |
-          echo "Logging in to Quay as: ${{ env.QUAY_USERNAME }}"
-
-          echo "${{ env.QUAY_TOKEN }}" | buildah login quay.io \
-            -u "${{ env.QUAY_USERNAME }}" \
-            --password-stdin
-
-          echo "Login successful ✔"
-
-
-# -----------------------
-# PUSH IMAGE
-# -----------------------
-      - name: Push image to Quay
-        run: |
-          echo "Pushing image: ${{ env.IMAGE_FULL }}"
-          buildah push ${{ env.IMAGE_FULL }}
-
-
-# -----------------------
-# IMAGE SCAN
-# -----------------------
       - name: Trivy Image Scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.IMAGE_FULL }}
           severity: HIGH,CRITICAL
-          ignore-unfixed: true
           exit-code: 1
 
+      # -------------------------
+      # 🔨 BUILD + PUSH IMAGE
+      # -------------------------
+      - name: Build and Push Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ecommerce-app
+          file: ecommerce-app/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_FULL }}
 
-# -----------------------
-# OPENSHIFT LOGIN
-# -----------------------
-      - name: Install oc CLI
+      # -------------------------
+      # 🧪 IMAGE SCAN
+      # -------------------------
+      - name: Trivy Image Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_FULL }}
+          severity: HIGH,CRITICAL
+          exit-code: 1
+
+      # -------------------------
+      # 🔧 INSTALL OC CLI
+      # -------------------------
+      - name: Install OpenShift CLI
         uses: redhat-actions/openshift-tools-installer@v1
         with:
           oc: 4
 
-
+      # -------------------------
+      # 🔐 LOGIN OPENSHIFT
+      # -------------------------
       - name: Login to OpenShift
         uses: redhat-actions/oc-login@v1
         with:
@@ -135,29 +118,61 @@ jobs:
           insecure_skip_tls_verify: true
           namespace: ${{ env.OPENSHIFT_NAMESPACE }}
 
-
-# -----------------------
-# DEPLOY
-# -----------------------
-      - name: Apply OpenShift resources
+      # -------------------------
+      # 🚀 DEPLOY
+      # -------------------------
+      - name: Apply Kubernetes/OpenShift manifests
         run: |
           oc apply -f openshift/deployment.yaml
           oc apply -f openshift/service.yaml
           oc apply -f openshift/route.yaml
 
-
-      - name: Update Deployment image
+      # -------------------------
+      # 🔄 UPDATE IMAGE
+      # -------------------------
+      - name: Update Deployment Image
         run: |
-          oc set image deployment/${{ env.APP_NAME }} \
-            ${{ env.APP_NAME }}=${{ env.IMAGE_FULL }}
+          oc set image deployment/${APP_NAME} \
+            ${APP_NAME}=${IMAGE_FULL}
 
-
-      - name: Rollout status
+      # -------------------------
+      # 📊 ROLLOUT STATUS
+      # -------------------------
+      - name: Rollout Status
         run: |
-          oc rollout status deployment/${{ env.APP_NAME }}
+          oc rollout status deployment/${APP_NAME}
 
-
-      - name: Route URL
+      # -------------------------
+      # 🌐 GET ROUTE
+      # -------------------------
+      - name: Get Application URL
         run: |
-          echo "Application URL:"
-          oc get route ${{ env.APP_NAME }} -o jsonpath='{.spec.host}'
+          echo "App URL:"
+          oc get route ${APP_NAME} -o jsonpath='{.spec.host}'
+
+
+  docker_push_image:
+    runs-on: ubuntu-latest
+    needs: scan
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Quay
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+
+      - name: Build and Push Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ecommerce-app
+          file: ecommerce-app/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_FULL }}
