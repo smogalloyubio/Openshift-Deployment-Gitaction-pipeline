@@ -12,7 +12,7 @@ env:
   APP_NAME: openshift-app
   IMAGE_TAG: latest   
 
-  IMAGE_REGISTRY: quay.io/${{ secrets.QUAY_USERNAME }}
+  IMAGE_REGISTRY: quay.io
   IMAGE_REGISTRY_USER: ${{ secrets.QUAY_USERNAME }}
   IMAGE_REGISTRY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
@@ -64,12 +64,12 @@ jobs:
     - name: Tag image for Quay
       run: |
         buildah tag ${{ env.APP_NAME }}:${{ env.IMAGE_TAG }} \
-        ${{ env.IMAGE_REGISTRY }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+        ${{env.IMAGE_REGISTRY}}/${{ env.IMAGE_REGISTRY_USER }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
 
     - name: Trivy Image Scan (before push)
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.IMAGE_REGISTRY }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+        image-ref: ${{ env.IMAGE_REGISTRY_USER }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
         severity: HIGH,CRITICAL
         ignore-unfixed: true
         exit-code: 1
@@ -83,7 +83,7 @@ jobs:
 
     - name: Push image to Quay
       run: |
-        buildah push ${{ env.IMAGE_REGISTRY }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+        buildah push ${{ env.IMAGE_REGISTRY_USER }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
 
     - name: Install oc CLI
       uses: redhat-actions/openshift-tools-installer@v1
@@ -101,7 +101,7 @@ jobs:
     - name: Update Deployment image
       run: |
         oc set image deployment/${{ env.APP_NAME }} \
-        ${{ env.APP_NAME }}=${{ env.IMAGE_REGISTRY }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+        ${{ env.APP_NAME }}=${{ env.IMAGE_REGISTRY_USER }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
 
     - name: Apply OpenShift resources
       run: |
