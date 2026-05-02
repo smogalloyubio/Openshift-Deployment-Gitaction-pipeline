@@ -131,7 +131,7 @@ jobs:
         run: |
           oc apply -f openshift/deployment.yaml
           oc apply -f openshift/service.yaml
-          oc apply -f openshift/route.yaml
+          oc apply -f openshift/routes.yaml
 
       - name: Update Deployment Image
         run: |
