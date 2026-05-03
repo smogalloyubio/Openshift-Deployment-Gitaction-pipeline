@@ -37,13 +37,13 @@ jobs:
       - uses: actions/checkout@v4
 
      
-      - name: Cache Node Modules
-        uses: actions/cache@v3
-        with:
-          path: ecommerce-app/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('ecommerce-app/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+      -  name: Set up Node.js
+         uses: actions/setup-node@v4
+         with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'ecommerce-app/package-lock.json'
+
 
      
       - name: Install Dependencies
