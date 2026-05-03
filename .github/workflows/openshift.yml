@@ -49,7 +49,7 @@ jobs:
       - name: Install Dependencies
         run: |
           cd ecommerce-app
-          npm ci
+          npm ci --include=dev
 
       - name: Build React App
         run: |
