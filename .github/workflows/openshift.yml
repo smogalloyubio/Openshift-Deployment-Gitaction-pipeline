@@ -1,5 +1,5 @@
 
-name: OpenShift CI/CD Pipeline (Secure 3-Stage)
+name: OpenShift CI/CD Pipeline (Secure 3-Stage) for. openshift deployment
 
 on:
   push:
